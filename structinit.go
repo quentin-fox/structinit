@@ -52,6 +52,10 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 
 	typ := v.TypeOf(lit.Type)
 
+	if typ == nil {
+		return true
+	}
+
 	sTyp, ok := typ.Underlying().(*types.Struct)
 
 	if !ok {
