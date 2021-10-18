@@ -2,6 +2,7 @@ package structinit
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"strings"
 
@@ -87,10 +88,19 @@ func exhaustiveRequired(stack []ast.Node) bool {
 	for i := len(stack) - 1; i >= 0; i-- {
 		n := stack[i]
 
-		if decl, ok := n.(*ast.GenDecl); ok {
-			genDecl = decl
-			break
+		decl, ok := n.(*ast.GenDecl)
+
+		if !ok {
+			continue
 		}
+
+		// must be a var declaration, not a const/import/type
+		if decl.Tok != token.VAR {
+			continue
+		}
+
+		genDecl = decl
+		break
 	}
 
 	// if no GenDecl encountered, is probably an error
