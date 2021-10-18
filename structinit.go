@@ -73,9 +73,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 		return true
 	}
 
-	diagnostic := buildDiagnostic(missing)
-	diagnostic.Pos = n.Pos()
-
+	diagnostic := buildDiagnostic(n, typ.String(), missing)
 	v.Report(diagnostic)
 
 	return true
@@ -160,16 +158,21 @@ func findMissing(sTyp *types.Struct, lit *ast.CompositeLit) []string {
 	return missing
 }
 
-func buildDiagnostic(missing []string) analysis.Diagnostic {
-	var message string
+func buildDiagnostic(n ast.Node, name string, missing []string) analysis.Diagnostic {
+	var builder strings.Builder
+	builder.WriteString("exhaustive struct literal ")
+	builder.WriteString(name)
 
 	if len(missing) == 1 {
-		message = "exhaustive struct literal is missing field " + missing[0]
+		builder.WriteString(" not initialized with field ")
+		builder.WriteString(missing[0])
 	} else {
-		message = "exhaustive struct literal is missing fields " + strings.Join(missing, ", ")
+		builder.WriteString(" not initialized with fields ")
+		builder.WriteString(strings.Join(missing, ", "))
 	}
 
 	return analysis.Diagnostic{
-		Message: message,
+		Pos: n.Pos(),
+		Message: builder.String(),
 	}
 }
