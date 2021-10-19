@@ -30,7 +30,7 @@ type Cat struct {
 var cat = Cat{ // fails with "Exhaustive struct literal Cat not initialized with field Friendly"
   Name: "Bad Kitty",
   Color: "Calico",
-  Floofiness: 5,
+  Floofiness: 6,
 }
 ```
 
@@ -50,7 +50,7 @@ type Cat struct {
 var cat = Cat{ // no errors reported
   Name: "Bad Kitty",
   Color: "Calico",
-  Floofiness: 5,
+  Floofiness: 6,
 }
 ```
 
