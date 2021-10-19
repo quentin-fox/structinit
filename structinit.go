@@ -23,6 +23,8 @@ type visitor struct {
 	TypeOf func(ast.Expr) types.Type
 }
 
+type Set map[string]struct{}
+
 func run(pass *analysis.Pass) (interface{}, error) {
 
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
@@ -63,11 +65,48 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 		return true
 	}
 
-	if !exhaustiveRequired(stack) {
+	tag := findTag(stack)
+
+	if tag == nil {
 		return true
 	}
 
-	missing := findMissing(sTyp, lit)
+	isExhaustive, omitMap := parseTag(tag.Text)
+
+	if !isExhaustive {
+		return true
+	}
+
+	typeFields := getTypeFields(sTyp)
+
+	var invalidOmittedFields []string
+
+	for field := range omitMap {
+		if _, ok := typeFields[field]; !ok {
+			invalidOmittedFields = append(invalidOmittedFields, field)
+		}
+	}
+
+	if len(invalidOmittedFields) > 0 {
+		diagnostic := buildInvalidOmitDiagnostic(n, typ.String(), invalidOmittedFields)
+		v.Report(diagnostic)
+	}
+
+	litFields := getLiteralFields(lit)
+
+	var missing []string
+
+	for field := range typeFields {
+		if _, exclude := omitMap[field]; exclude {
+			continue
+		}
+
+		_, present := litFields[field]
+
+		if !present {
+			missing	= append(missing, field)
+		}
+	}
 
 	if len(missing) == 0 {
 		return true
@@ -79,7 +118,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 	return true
 }
 
-func exhaustiveRequired(stack []ast.Node) bool {
+func findTag(stack []ast.Node) *ast.Comment {
 	var genDecl *ast.GenDecl
 
 	// traverse from end of list backwards until first GenDecl is found
@@ -106,27 +145,59 @@ func exhaustiveRequired(stack []ast.Node) bool {
 	// since it has the ast.Comment with the exhaustive tag attached to it
 	// so return false, i.e. is not exhaustive
 	if genDecl == nil {
-		return false
+		return nil
 	}
 
 	if genDecl.Doc == nil {
-		return false
+		return nil
 	}
 
 	// last comment in the general decl should have the exhaustive tag
 
 	numDocs := len(genDecl.Doc.List)
-	text := genDecl.Doc.List[numDocs-1].Text
-
-	return text == "//structinit:exhaustive"
+	return genDecl.Doc.List[numDocs-1]
 }
 
-func findMissing(sTyp *types.Struct, lit *ast.CompositeLit) []string {
-	if sTyp.NumFields() == len(lit.Elts) {
-		return nil
+const tag = "//structinit:exhaustive"
+
+// from the text in ast.Comment, returns if the struct should be validated for exhaustiveness
+// and if there are any fields that should be omitted from the exhaustiveness checks
+// text passed in has two leading slashes from the inline comment
+func parseTag(text string) (bool, Set) {
+	if !strings.HasPrefix(text, tag) {
+		return false, nil
 	}
 
-	elMap := make(map[string]struct{})
+	// with no suffix
+	if text == tag {
+		return true, nil
+	}
+
+	// if tag has the suffix like `,omit=ID,Name`
+	// omit the ID and Name fields from exhaustiveness checks
+
+	// will always work, since HasPrefix check done above
+	omit := strings.TrimPrefix(text, tag)
+
+	if !strings.HasPrefix(omit, ",omit=") {
+		return true, nil
+	}
+
+	omitList := strings.TrimPrefix(omit, ",omit=")
+
+	omitFields := strings.Split(omitList, ",")
+
+	omitMap := make(Set) 
+
+	for _, field := range omitFields {
+		omitMap[field] = struct{}{}
+	}
+
+	return true, omitMap
+}
+
+func getLiteralFields(lit *ast.CompositeLit) Set {
+	fields := make(Set)
 
 	for _, el := range lit.Elts {
 		kve, ok := el.(*ast.KeyValueExpr)
@@ -141,26 +212,27 @@ func findMissing(sTyp *types.Struct, lit *ast.CompositeLit) []string {
 			continue
 		}
 
-		elMap[ident.Name] = struct{}{}
+		fields[ident.Name] = struct{}{}
 	}
 
-	var missing []string
+	return fields
+}
+
+func getTypeFields(sTyp *types.Struct) Set {
+	fields := make(Set)
 
 	for i := 0; i < sTyp.NumFields(); i++ {
 		fieldName := sTyp.Field(i).Name()
-		_, ok := elMap[fieldName]
 
-		if !ok {
-			missing = append(missing, fieldName)
-		}
+		fields[fieldName] = struct{}{}
 	}
 
-	return missing
+	return fields
 }
 
 func buildDiagnostic(n ast.Node, name string, missing []string) analysis.Diagnostic {
 	var builder strings.Builder
-	builder.WriteString("exhaustive struct literal ")
+	builder.WriteString("Exhaustive struct literal ")
 	builder.WriteString(name)
 
 	if len(missing) == 1 {
@@ -170,6 +242,28 @@ func buildDiagnostic(n ast.Node, name string, missing []string) analysis.Diagnos
 		builder.WriteString(" not initialized with fields ")
 		builder.WriteString(strings.Join(missing, ", "))
 	}
+
+	return analysis.Diagnostic{
+		Pos: n.Pos(),
+		Message: builder.String(),
+	}
+}
+
+func buildInvalidOmitDiagnostic(n ast.Node, name string, invalidOmittedFields []string) analysis.Diagnostic {
+	var builder strings.Builder
+
+	if len(invalidOmittedFields) == 1 {
+		builder.WriteString("Omitted field ")
+		builder.WriteString(invalidOmittedFields[0])
+		builder.WriteString(" is not a field")
+	} else {
+		builder.WriteString("Omitted fields ")
+		builder.WriteString(strings.Join(invalidOmittedFields, ", "))
+		builder.WriteString(" are not fields ")
+	}
+
+	builder.WriteString(" of ")
+	builder.WriteString(name)
 
 	return analysis.Diagnostic{
 		Pos: n.Pos(),
