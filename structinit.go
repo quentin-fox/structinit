@@ -216,6 +216,7 @@ func parseTag(text string) (bool, Set) {
 	return true, omitMap
 }
 
+// returns the list of fields that are initialized in the composite literal being analyzed
 func getLiteralFields(lit *ast.CompositeLit) Set {
 	fields := make(Set)
 
@@ -238,6 +239,7 @@ func getLiteralFields(lit *ast.CompositeLit) Set {
 	return fields
 }
 
+// returns the list of Exported/Private+Exported fields in the struct type for the composite literal
 func getTypeFields(sTyp *types.Struct, validatePrivate bool) Set {
 	fields := make(Set)
 
@@ -258,7 +260,7 @@ func getTypeFields(sTyp *types.Struct, validatePrivate bool) Set {
 
 func buildDiagnostic(n ast.Node, name string, missing []string) analysis.Diagnostic {
 	var builder strings.Builder
-	builder.WriteString("Exhaustive struct literal ")
+	builder.WriteString("exhaustive struct literal ")
 	builder.WriteString(name)
 
 	if len(missing) == 1 {
@@ -279,11 +281,11 @@ func buildInvalidOmitDiagnostic(n ast.Node, name string, invalidOmittedFields []
 	var builder strings.Builder
 
 	if len(invalidOmittedFields) == 1 {
-		builder.WriteString("Omitted field ")
+		builder.WriteString("omitted field ")
 		builder.WriteString(invalidOmittedFields[0])
 		builder.WriteString(" is not a field")
 	} else {
-		builder.WriteString("Omitted fields ")
+		builder.WriteString("omitted fields ")
 		builder.WriteString(strings.Join(invalidOmittedFields, ", "))
 		builder.WriteString(" are not fields ")
 	}
