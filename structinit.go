@@ -97,7 +97,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 	var missing []string
 
 	for field := range typeFields {
-		if _, exclude := omitMap[field]; exclude {
+		if _, omit := omitMap[field]; omit {
 			continue
 		}
 
