@@ -19,8 +19,8 @@ var Analyzer = &analysis.Analyzer{
 }
 
 type visitor struct {
-	Report func(analysis.Diagnostic)
-	TypeOf func(ast.Expr) types.Type
+	Report      func(analysis.Diagnostic)
+	TypeOf      func(ast.Expr) types.Type
 	PackagePath string
 }
 
@@ -35,8 +35,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	v := visitor{
-		Report: pass.Report,
-		TypeOf: pass.TypesInfo.TypeOf,
+		Report:      pass.Report,
+		TypeOf:      pass.TypesInfo.TypeOf,
 		PackagePath: pass.Pkg.Path(),
 	}
 
@@ -96,7 +96,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 	}
 
 	typeFields := getTypeFields(sTyp, validatePrivate)
-  
+
 	// slice of fields that the tag omits
 	// but that are not valid fields re: the type of struct being analyzed
 	var invalidOmittedFields []string
@@ -124,7 +124,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 		_, present := litFields[field]
 
 		if !present {
-			missing	= append(missing, field)
+			missing = append(missing, field)
 		}
 	}
 
@@ -207,7 +207,7 @@ func parseTag(text string) (bool, Set) {
 
 	omitFields := strings.Split(omitList, ",")
 
-	omitMap := make(Set) 
+	omitMap := make(Set)
 
 	for _, field := range omitFields {
 		omitMap[field] = struct{}{}
@@ -272,12 +272,16 @@ func buildDiagnostic(n ast.Node, name string, missing []string) analysis.Diagnos
 	}
 
 	return analysis.Diagnostic{
-		Pos: n.Pos(),
+		Pos:     n.Pos(),
 		Message: builder.String(),
 	}
 }
 
-func buildInvalidOmitDiagnostic(n ast.Node, name string, invalidOmittedFields []string) analysis.Diagnostic {
+func buildInvalidOmitDiagnostic(
+	n ast.Node,
+	name string,
+	invalidOmittedFields []string,
+) analysis.Diagnostic {
 	var builder strings.Builder
 
 	if len(invalidOmittedFields) == 1 {
@@ -294,7 +298,7 @@ func buildInvalidOmitDiagnostic(n ast.Node, name string, invalidOmittedFields []
 	builder.WriteString(name)
 
 	return analysis.Diagnostic{
-		Pos: n.Pos(),
+		Pos:     n.Pos(),
 		Message: builder.String(),
 	}
 }
