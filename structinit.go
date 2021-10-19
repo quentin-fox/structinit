@@ -21,6 +21,7 @@ var Analyzer = &analysis.Analyzer{
 type visitor struct {
 	Report func(analysis.Diagnostic)
 	TypeOf func(ast.Expr) types.Type
+	PackagePath string
 }
 
 type Set map[string]struct{}
@@ -36,6 +37,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	v := visitor{
 		Report: pass.Report,
 		TypeOf: pass.TypesInfo.TypeOf,
+		PackagePath: pass.Pkg.Path(),
 	}
 
 	inspector.WithStack(filter, v.visit)
@@ -77,7 +79,23 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 		return true
 	}
 
-	typeFields := getTypeFields(sTyp)
+	// qualified name for the type, including package name
+	typName := typ.String()
+
+	// if the type is local to the package being scanned
+	// if the type is not local, we should ignore private fields in the struct type
+	var validatePrivate bool
+
+	if strings.HasPrefix(typName, v.PackagePath) {
+		typeSuffix := strings.TrimPrefix(typName, v.PackagePath)
+
+		// if there is a slash in the type suffix, means that it's imported from a subpackage
+		// rather than local to the current package
+
+		validatePrivate = !strings.HasPrefix(typeSuffix, "/")
+	}
+
+	typeFields := getTypeFields(sTyp, validatePrivate)
   
 	// slice of fields that tag omits
 	// but that are not valid fields in the struct being analyzed
@@ -90,7 +108,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 	}
 
 	if len(invalidOmittedFields) > 0 {
-		diagnostic := buildInvalidOmitDiagnostic(tag, typ.String(), invalidOmittedFields)
+		diagnostic := buildInvalidOmitDiagnostic(tag, typName, invalidOmittedFields)
 		v.Report(diagnostic)
 	}
 
@@ -114,7 +132,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 		return true
 	}
 
-	diagnostic := buildDiagnostic(n, typ.String(), missing)
+	diagnostic := buildDiagnostic(n, typName, missing)
 	v.Report(diagnostic)
 
 	return true
@@ -220,11 +238,17 @@ func getLiteralFields(lit *ast.CompositeLit) Set {
 	return fields
 }
 
-func getTypeFields(sTyp *types.Struct) Set {
+func getTypeFields(sTyp *types.Struct, validatePrivate bool) Set {
 	fields := make(Set)
 
 	for i := 0; i < sTyp.NumFields(); i++ {
-		fieldName := sTyp.Field(i).Name()
+		field := sTyp.Field(i)
+
+		if !validatePrivate && !field.Exported() {
+			continue
+		}
+
+		fieldName := field.Name()
 
 		fields[fieldName] = struct{}{}
 	}
