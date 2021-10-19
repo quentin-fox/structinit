@@ -78,7 +78,9 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 	}
 
 	typeFields := getTypeFields(sTyp)
-
+  
+	// slice of fields that tag omits
+	// but that are not valid fields in the struct being analyzed
 	var invalidOmittedFields []string
 
 	for field := range omitMap {
@@ -88,7 +90,7 @@ func (v visitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
 	}
 
 	if len(invalidOmittedFields) > 0 {
-		diagnostic := buildInvalidOmitDiagnostic(n, typ.String(), invalidOmittedFields)
+		diagnostic := buildInvalidOmitDiagnostic(tag, typ.String(), invalidOmittedFields)
 		v.Report(diagnostic)
 	}
 
