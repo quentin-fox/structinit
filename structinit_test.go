@@ -2,6 +2,7 @@ package structinit
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"golang.org/x/tools/go/analysis/analysistest"
@@ -14,5 +15,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatalf("Could not get wd: %s", err)
 	}
 
-	analysistest.Run(t, wd, Analyzer, "./testdata")
+	testDir := filepath.Join(wd, "testdata")
+
+	analysistest.Run(t, testDir, Analyzer, "test")
 }
