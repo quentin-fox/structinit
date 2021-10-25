@@ -61,3 +61,9 @@ Any number of fields can be omitted by passing them as a comma-separated list to
 ```
 
 `structinit` will not report an error if an omitted field is initialized. However, it will report an error if an omitted field is not one of the fields of the struct being validated.
+
+# Contrbuting
+
+Only external dependency is the `pre-commit` tool, see here for install instructions: https://pre-commit.com
+
+Once installed, run `pre-commit install` from the root of this directory to set up git hooks.
